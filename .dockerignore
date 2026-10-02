@@ -1,0 +1,15 @@
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.coverage
+htmlcov/
+.git/
+.gemini/
+.specify/
+*.zip
+*.tar.gz
+zeppelin.db-shm
+zeppelin.db-wal

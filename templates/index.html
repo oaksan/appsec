@@ -1,0 +1,564 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Zeppelin-AppSec: Diagnóstico de Segurança Contínua</title>
+  <!-- Tailwind CSS via CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Chart.js via CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            znavy: '#1B365D',
+            zsteel: '#2F5496',
+            zroyal: '#4472C4',
+            zice: '#DCE6F1',
+            zicebg: '#F9FBFD',
+            zgrayborder: '#D6DCE4',
+            zgreen: '#A8D08D',
+            zgreensuccess: '#2E7D32',
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    /* Custom scrollbar and subtle transitions */
+    ::-webkit-scrollbar { width: 8px; height: 8px; }
+    ::-webkit-scrollbar-track { background: #f1f5f9; }
+    ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col font-sans antialiased">
+
+  <!-- Header Executivo -->
+  <header class="bg-znavy text-white shadow-md border-b-4 border-zroyal">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+      <div>
+        <div class="flex items-center gap-3">
+          <span class="bg-zroyal text-white text-xs font-bold uppercase tracking-widest px-2.5 py-1 rounded">IFES 2026</span>
+          <span class="text-slate-300 text-xs tracking-wider uppercase font-semibold">Design Science Research</span>
+        </div>
+        <h1 class="text-2xl sm:text-3xl font-extrabold tracking-tight mt-1 text-white">
+          Zeppelin-AppSec
+        </h1>
+        <p class="text-sm text-slate-300 mt-0.5">
+          Modelo Evolutivo StH-AppSec & Instrumento de Diagnóstico para Segurança Contínua
+        </p>
+      </div>
+
+      <!-- Quick Actions -->
+      <div class="flex items-center gap-3 w-full md:w-auto">
+        <button id="btn-benchmark-toggle" class="flex-1 md:flex-none inline-flex items-center justify-center gap-2 bg-zsteel hover:bg-zroyal text-white px-4 py-2.5 rounded-lg text-sm font-semibold transition shadow-sm border border-blue-400/30">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>
+          <span id="benchmark-toggle-text">Ver Benchmark Purdue</span>
+        </button>
+        <a href="/docs" target="_blank" class="inline-flex items-center justify-center p-2.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition border border-slate-700 text-xs font-medium" title="Documentação OpenAPI">
+          API Docs
+        </a>
+      </div>
+    </div>
+  </header>
+
+  <!-- Container Principal -->
+  <main class="flex-1 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full space-y-8">
+
+    <!-- Seção de Controle e Seleção de Squad -->
+    <section class="bg-white rounded-xl shadow-sm border border-slate-200 p-5 md:p-6 transition hover:shadow">
+      <div class="flex flex-col md:flex-row md:items-center justify-between gap-5">
+        <div class="space-y-1">
+          <div>
+            <label for="squad-select" class="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">
+              Selecione a Squad para Diagnóstico
+            </label>
+          </div>
+          <div class="flex items-center gap-2">
+            <div class="relative flex-1 md:w-80">
+              <select id="squad-select" class="w-full appearance-none bg-slate-50 border border-slate-300 text-slate-900 text-base font-semibold rounded-lg px-4 py-2.5 pr-10 focus:outline-none focus:ring-2 focus:ring-zroyal focus:border-zroyal transition cursor-pointer">
+                {% for sq in squads %}
+                  <option value="{{ sq.code }}" {% if loop.first %}selected{% endif %}>
+                    {{ sq.name }} ({{ sq.purdue_short }})
+                  </option>
+                {% endfor %}
+              </select>
+              <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-slate-500">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+              </div>
+            </div>
+            <button id="btn-open-squad-modal-btn" type="button" class="inline-flex items-center gap-1.5 bg-znavy hover:bg-zsteel text-white text-xs font-semibold px-3.5 py-2.5 rounded-lg transition shadow-sm whitespace-nowrap">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+              + Nova Squad
+            </button>
+            <button id="btn-delete-squad" type="button" title="Excluir squad selecionada" class="inline-flex items-center gap-1.5 bg-white hover:bg-red-50 text-red-600 hover:text-red-700 border border-red-200 text-xs font-semibold px-3 py-2.5 rounded-lg transition shadow-sm whitespace-nowrap">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+              Excluir Squad
+            </button>
+          </div>
+        </div>
+
+        <!-- Metadados da Squad Ativa -->
+        <div class="flex-1 md:max-w-2xl bg-zicebg rounded-lg p-3.5 border border-zice text-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <div class="flex items-center gap-2">
+              <span id="squad-purdue-badge" class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-100 text-znavy">
+                Carregando...
+              </span>
+              <h2 id="squad-name-title" class="font-bold text-slate-800">Squad</h2>
+            </div>
+            <p id="squad-description" class="text-xs text-slate-600 mt-1 line-clamp-2">
+              Descrição da squad...
+            </p>
+          </div>
+          <div class="text-right sm:border-l sm:border-slate-200 sm:pl-4 shrink-0">
+            <span class="block text-xs text-slate-500 uppercase font-medium">Metodologia</span>
+            <span class="text-xs font-semibold text-zsteel">Purdue / ISA-95</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Cards de Métricas Executivas (KPIs) -->
+    <section class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5" id="kpi-cards-section">
+      
+      <!-- Card 1: Grau de Adoção Global (AD) -->
+      <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5 relative overflow-hidden">
+        <div class="flex justify-between items-start">
+          <div>
+            <p class="text-xs font-bold uppercase tracking-wider text-slate-500">Grau de Adoção Global</p>
+            <h3 id="kpi-ad-global" class="text-3xl font-black text-znavy mt-2">--%</h3>
+          </div>
+          <span class="p-2.5 rounded-lg bg-blue-50 text-zroyal">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+          </span>
+        </div>
+        <div class="mt-4">
+          <div class="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
+            <div id="kpi-ad-progress" class="bg-zroyal h-2 rounded-full transition-all duration-700" style="width: 0%"></div>
+          </div>
+          <p id="kpi-ad-status" class="text-xs font-medium text-slate-500 mt-2 flex justify-between">
+            <span>Média das 6 dimensões SMAF</span>
+            <span id="kpi-ad-bench-comp" class="font-semibold text-slate-700"></span>
+          </p>
+        </div>
+      </div>
+
+      <!-- Card 2: Nível Purdue (ISA-95) -->
+      <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
+        <div class="flex justify-between items-start">
+          <div>
+            <p class="text-xs font-bold uppercase tracking-wider text-slate-500">Camada Industrial</p>
+            <h3 id="kpi-purdue-short" class="text-xl font-bold text-slate-800 mt-2">N/A</h3>
+          </div>
+          <span class="p-2.5 rounded-lg bg-purple-50 text-purple-600">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
+          </span>
+        </div>
+        <p id="kpi-purdue-level-full" class="text-xs text-slate-600 mt-3 font-medium">
+          Nível de automação do Modelo Purdue
+        </p>
+      </div>
+
+      <!-- Card 3: Estágio Predominante StH-AppSec -->
+      <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
+        <div class="flex justify-between items-start">
+          <div>
+            <p class="text-xs font-bold uppercase tracking-wider text-slate-500">Estágio Predominante</p>
+            <h3 id="kpi-predominant-stage" class="text-xl font-bold text-slate-800 mt-2">--</h3>
+          </div>
+          <span class="p-2.5 rounded-lg bg-emerald-50 text-emerald-600">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z"></path></svg>
+          </span>
+        </div>
+        <p class="text-xs text-slate-500 mt-3">
+          Trilha evolutiva Stairway to Heaven (StH)
+        </p>
+      </div>
+
+      <!-- Card 4: Distribuição por Escala de Institucionalização -->
+      <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
+        <p class="text-xs font-bold uppercase tracking-wider text-slate-500">Distribuição por Nível AL</p>
+        <div class="grid grid-cols-5 gap-1.5 mt-3 text-center" id="al-counts-container">
+          <div class="bg-slate-100 p-1.5 rounded border border-slate-200">
+            <span class="block text-[10px] font-bold text-slate-500">AL0</span>
+            <span id="count-al0" class="text-sm font-extrabold text-slate-700">0</span>
+          </div>
+          <div class="bg-slate-100 p-1.5 rounded border border-slate-200">
+            <span class="block text-[10px] font-bold text-slate-500">AL1</span>
+            <span id="count-al1" class="text-sm font-extrabold text-slate-700">0</span>
+          </div>
+          <div class="bg-blue-50 p-1.5 rounded border border-blue-200">
+            <span class="block text-[10px] font-bold text-blue-600">AL2</span>
+            <span id="count-al2" class="text-sm font-extrabold text-blue-800">0</span>
+          </div>
+          <div class="bg-blue-100 p-1.5 rounded border border-blue-300">
+            <span class="block text-[10px] font-bold text-zsteel">AL3</span>
+            <span id="count-al3" class="text-sm font-extrabold text-znavy">0</span>
+          </div>
+          <div class="bg-emerald-50 p-1.5 rounded border border-emerald-200">
+            <span class="block text-[10px] font-bold text-emerald-600">AL4</span>
+            <span id="count-al4" class="text-sm font-extrabold text-emerald-800">0</span>
+          </div>
+        </div>
+        <p class="text-[11px] text-slate-400 mt-2 text-center">Total de 40 afirmações atômicas avaliadas</p>
+      </div>
+
+    </section>
+
+    <!-- Seção de Visualização Gráfica Analítica -->
+    <section class="grid grid-cols-1 lg:grid-cols-2 gap-8" id="charts-section">
+      
+      <!-- Gráfico 1: Radar Chart (Dimensões SMAF) -->
+      <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5 md:p-6 flex flex-col justify-between">
+        <div>
+          <div class="flex items-center justify-between">
+            <h3 class="font-bold text-lg text-slate-800 flex items-center gap-2">
+              <span class="w-3 h-3 rounded-full bg-zroyal"></span>
+              Grau de Adoção por Dimensão SMAF
+            </h3>
+            <span class="text-xs text-slate-500 font-medium bg-slate-100 px-2 py-1 rounded">
+              Escala 0% a 100%
+            </span>
+          </div>
+          <p class="text-xs text-slate-500 mt-1">
+            Perfil de maturidade nas 6 dimensões do Security Maturity Assessment Framework.
+          </p>
+        </div>
+        
+        <div class="relative w-full aspect-square max-h-[380px] mx-auto my-4 flex items-center justify-center">
+          <canvas id="radarChart"></canvas>
+        </div>
+
+        <div class="pt-3 border-t border-slate-100 text-xs text-slate-500 flex justify-between items-center">
+          <span>Linha contínua: Squad selecionada</span>
+          <span class="flex items-center gap-1.5"><span class="w-3 h-0.5 bg-slate-400 inline-block"></span> Linha tracejada: Média Organizacional (52,0%)</span>
+        </div>
+      </div>
+
+      <!-- Gráfico 2: Stacked Bar Chart (Estágios StH-AppSec) -->
+      <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5 md:p-6 flex flex-col justify-between">
+        <div>
+          <div class="flex items-center justify-between">
+            <h3 class="font-bold text-lg text-slate-800 flex items-center gap-2">
+              <span class="w-3 h-3 rounded-full bg-zsteel"></span>
+              Práticas por Estágio StH-AppSec & Nível AL
+            </h3>
+            <span class="text-xs text-slate-500 font-medium bg-slate-100 px-2 py-1 rounded">
+              Contagem Absoluta
+            </span>
+          </div>
+          <p class="text-xs text-slate-500 mt-1">
+            Distribuição dos níveis de institucionalização ao longo da trilha evolutiva (Estágios A ao E).
+          </p>
+        </div>
+
+        <div class="relative w-full aspect-square max-h-[380px] mx-auto my-4 flex items-center justify-center">
+          <canvas id="barChart"></canvas>
+        </div>
+
+        <div class="pt-3 border-t border-slate-100 text-xs text-slate-500 flex justify-between items-center">
+          <span>Total de afirmações: Estágio A (3), B (10), C (8), D (9), E (10)</span>
+          <span class="text-emerald-700 font-medium">AL4 = Institucionalizada</span>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- Seção Modal / Drawer de Benchmark Organizacional (Oculta por padrão) -->
+    <section id="benchmark-section" class="hidden bg-white rounded-xl shadow-sm border-2 border-zsteel p-6 transition-all duration-300">
+      <div class="flex items-center justify-between pb-4 border-b border-slate-200">
+        <div>
+          <span class="text-xs font-bold uppercase tracking-wider text-zsteel">Visão Comparativa Industrial</span>
+          <h3 class="text-xl font-bold text-znavy">Matrizes de Benchmarking Organizacional (Purdue & StH-AppSec)</h3>
+        </div>
+        <button id="btn-close-benchmark" class="text-slate-400 hover:text-slate-700 p-1.5 rounded-lg hover:bg-slate-100 transition">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+        </button>
+      </div>
+
+      <!-- Tabela 1: Matriz por Dimensão SMAF -->
+      <div class="mt-6">
+        <div class="mb-3 flex items-center justify-between">
+          <div>
+            <h4 class="text-sm font-bold text-slate-800 uppercase tracking-wide flex items-center gap-2">
+              <span class="w-2.5 h-2.5 rounded-full bg-zroyal"></span>
+              1. Matriz de Benchmarking por Dimensão SMAF
+            </h4>
+            <p class="text-xs text-slate-500 mt-0.5">Grau de Adoção (AD%) nas 6 dimensões de segurança contínua.</p>
+          </div>
+        </div>
+        <div class="overflow-x-auto rounded-lg border border-slate-200">
+          <table class="w-full text-left text-sm border-collapse" id="benchmark-table">
+            <thead id="benchmark-dim-thead">
+              <tr class="bg-znavy text-white text-xs uppercase tracking-wider">
+                <th class="py-3 px-4 rounded-tl-lg">Dimensão SMAF</th>
+                <th class="py-3 px-4 text-center">Squad A (N2 OT)</th>
+                <th class="py-3 px-4 text-center">Squad B (N3 MES)</th>
+                <th class="py-3 px-4 text-center">Squad C (N4 ERP)</th>
+                <th class="py-3 px-4 text-center bg-zsteel rounded-tr-lg">Média Geral</th>
+              </tr>
+            </thead>
+            <tbody id="benchmark-table-body" class="divide-y divide-slate-200 text-slate-700 bg-white">
+              <!-- Populado via JS -->
+            </tbody>
+            <tfoot id="benchmark-dim-tfoot">
+              <tr class="bg-zice font-bold text-znavy border-t-2 border-zsteel">
+                <td class="py-3.5 px-4 rounded-bl-lg font-extrabold">GRAU DE ADOÇÃO GLOBAL (AD%)</td>
+                <td id="bench-foot-squad-a" class="py-3.5 px-4 text-center font-extrabold text-blue-900">--</td>
+                <td id="bench-foot-squad-b" class="py-3.5 px-4 text-center font-extrabold text-blue-900">--</td>
+                <td id="bench-foot-squad-c" class="py-3.5 px-4 text-center font-extrabold text-blue-900">--</td>
+                <td id="bench-foot-avg" class="py-3.5 px-4 text-center font-black bg-blue-200 text-znavy rounded-br-lg text-base">--</td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      </div>
+
+      <!-- Tabela 2: Matriz por Estágio StH-AppSec (Tabela 4.2 da dissertação) -->
+      <div class="mt-8 pt-6 border-t border-slate-200">
+        <div class="mb-3">
+          <h4 class="text-sm font-bold text-slate-800 uppercase tracking-wide flex items-center gap-2">
+            <span class="w-2.5 h-2.5 rounded-full bg-zsteel"></span>
+            2. Matriz de Benchmarking por Estágio StH-AppSec (Tabela 4.2)
+          </h4>
+          <p class="text-xs text-slate-500 mt-0.5">Comparativo do Grau de Adoção (AD%) nos 5 estágios evolutivos da trilha Stairway to Heaven (Estágios A ao E).</p>
+        </div>
+        <div class="overflow-x-auto rounded-lg border border-slate-200">
+          <table class="w-full text-left text-sm border-collapse" id="benchmark-stages-table">
+            <thead id="benchmark-stages-thead">
+              <tr class="bg-zsteel text-white text-xs uppercase tracking-wider">
+                <th class="py-3 px-4 rounded-tl-lg">Estágio StH-AppSec</th>
+                <th class="py-3 px-4 text-center">Squad A (N2 OT)</th>
+                <th class="py-3 px-4 text-center">Squad B (N3 MES)</th>
+                <th class="py-3 px-4 text-center">Squad C (N4 ERP)</th>
+                <th class="py-3 px-4 text-center bg-znavy rounded-tr-lg">Média Geral</th>
+              </tr>
+            </thead>
+            <tbody id="benchmark-stages-tbody" class="divide-y divide-slate-200 text-slate-700 bg-white">
+              <!-- Populado via JS -->
+            </tbody>
+            <tfoot id="benchmark-stages-tfoot">
+              <tr class="bg-zice font-bold text-znavy border-t-2 border-zsteel">
+                <td class="py-3.5 px-4 rounded-bl-lg font-extrabold">GRAU DE ADOÇÃO GLOBAL (AD%)</td>
+                <td id="bench-stages-foot-squad-a" class="py-3.5 px-4 text-center font-extrabold text-blue-900">--</td>
+                <td id="bench-stages-foot-squad-b" class="py-3.5 px-4 text-center font-extrabold text-blue-900">--</td>
+                <td id="bench-stages-foot-squad-c" class="py-3.5 px-4 text-center font-extrabold text-blue-900">--</td>
+                <td id="bench-stages-foot-avg" class="py-3.5 px-4 text-center font-black bg-blue-200 text-znavy rounded-br-lg text-base">--</td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- Seção de Auditoria Detalhada: Catálogo das 40 Afirmações Atômicas (DX) -->
+    <section class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+      <div class="p-5 md:p-6 border-b border-slate-200 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <div>
+          <h3 class="text-xl font-bold text-slate-800">
+            Catálogo e Auditoria Zeppelin-AppSec
+          </h3>
+          <p class="text-xs text-slate-500 mt-1">
+            Afirmações simplificadas unívocas com rastreabilidade ao OWASP SAMM v2.0 e OWASP DSOMM v5.0.2.
+          </p>
+        </div>
+
+        <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full md:w-auto">
+          <!-- Barra de Busca Rápida -->
+          <div class="relative w-full sm:w-60">
+            <input type="text" id="statement-search" placeholder="Buscar afirmação..." class="w-full text-xs bg-slate-50 border border-slate-300 rounded-lg pl-9 pr-3 py-2 focus:outline-none focus:ring-2 focus:ring-zroyal focus:border-zroyal">
+            <svg class="w-4 h-4 text-slate-400 absolute left-3 top-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+          </div>
+
+          <!-- Ações de Auditoria: Editar e Salvar -->
+          <div class="flex items-center gap-2">
+            <span id="audit-status-badge" class="hidden text-xs px-2.5 py-1 rounded font-medium"></span>
+            <button id="btn-edit-audit" type="button" class="inline-flex items-center justify-center gap-1.5 bg-zsteel hover:bg-zroyal text-white text-xs font-semibold px-3.5 py-2 rounded-lg transition shadow-sm">
+              <svg id="icon-edit" class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
+              <span id="btn-edit-text">Editar Auditoria</span>
+            </button>
+            <button id="btn-cancel-audit" type="button" class="hidden text-xs text-slate-600 hover:text-slate-800 bg-slate-100 hover:bg-slate-200 px-3 py-2 rounded-lg font-medium transition">
+              Cancelar
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Filtros por Dimensão SMAF -->
+      <div class="bg-slate-50/80 px-6 py-2.5 border-b border-slate-200 flex flex-wrap items-center gap-2">
+        <span class="text-xs font-semibold text-slate-500 mr-1">Dimensão SMAF:</span>
+        <button class="filter-dim-pill active bg-znavy text-white text-xs px-3 py-1 rounded-full font-medium transition" data-dim="all">Todas (40)</button>
+        <button class="filter-dim-pill bg-white text-slate-700 hover:bg-slate-200 text-xs px-3 py-1 rounded-full font-medium transition border border-slate-300" data-dim="Governança">Governança (6)</button>
+        <button class="filter-dim-pill bg-white text-slate-700 hover:bg-slate-200 text-xs px-3 py-1 rounded-full font-medium transition border border-slate-300" data-dim="Arquitetura e Design">Arquitetura e Design (8)</button>
+        <button class="filter-dim-pill bg-white text-slate-700 hover:bg-slate-200 text-xs px-3 py-1 rounded-full font-medium transition border border-slate-300" data-dim="Desenvol. e Revisão">Desenvol. e Revisão (5)</button>
+        <button class="filter-dim-pill bg-white text-slate-700 hover:bg-slate-200 text-xs px-3 py-1 rounded-full font-medium transition border border-slate-300" data-dim="Construção e Impl.">Construção e Impl. (6)</button>
+        <button class="filter-dim-pill bg-white text-slate-700 hover:bg-slate-200 text-xs px-3 py-1 rounded-full font-medium transition border border-slate-300" data-dim="Testes e Verificação">Testes e Verificação (7)</button>
+        <button class="filter-dim-pill bg-white text-slate-700 hover:bg-slate-200 text-xs px-3 py-1 rounded-full font-medium transition border border-slate-300" data-dim="Operações e Obs.">Operações e Obs. (8)</button>
+      </div>
+
+      <!-- Filtros por Estágio StH-AppSec -->
+      <div class="bg-slate-50/60 px-6 py-2.5 border-b border-slate-200 flex flex-wrap items-center gap-2">
+        <span class="text-xs font-semibold text-slate-500 mr-1">Estágio StH:</span>
+        <button class="filter-stage-pill active bg-znavy text-white text-xs px-3 py-1 rounded-full font-medium transition" data-stage="all">Todos (40)</button>
+        <button class="filter-stage-pill bg-white text-slate-700 hover:bg-slate-200 text-xs px-3 py-1 rounded-full font-medium transition border border-slate-300" data-stage="A">Reactive (3)</button>
+        <button class="filter-stage-pill bg-white text-slate-700 hover:bg-slate-200 text-xs px-3 py-1 rounded-full font-medium transition border border-slate-300" data-stage="B">Agile (10)</button>
+        <button class="filter-stage-pill bg-white text-slate-700 hover:bg-slate-200 text-xs px-3 py-1 rounded-full font-medium transition border border-slate-300" data-stage="C">CSI - Continuous Security Integration (8)</button>
+        <button class="filter-stage-pill bg-white text-slate-700 hover:bg-slate-200 text-xs px-3 py-1 rounded-full font-medium transition border border-slate-300" data-stage="D">CSD - Continuous Security Deployment (9)</button>
+        <button class="filter-stage-pill bg-white text-slate-700 hover:bg-slate-200 text-xs px-3 py-1 rounded-full font-medium transition border border-slate-300" data-stage="E">CSO - Continuous Security Operation (10)</button>
+      </div>
+
+      <!-- Tabela Responsiva -->
+      <div class="overflow-x-auto">
+        <table class="min-w-full text-left text-xs divide-y divide-slate-200">
+          <thead class="bg-slate-100 text-slate-600 uppercase font-semibold">
+            <tr>
+              <th scope="col" class="py-3 px-4 w-20">Cód.</th>
+              <th scope="col" class="py-3 px-4 min-w-[280px]">Declaração Simplificada (Foco em DX)</th>
+              <th scope="col" class="py-3 px-4">Dimensão SMAF</th>
+              <th scope="col" class="py-3 px-4">Estágio StH</th>
+              <th scope="col" class="py-3 px-4 text-center">Nível AL</th>
+              <th scope="col" class="py-3 px-4 text-center">Grau (AD)</th>
+              <th scope="col" class="py-3 px-4 min-w-[220px]">Rastreabilidade Normativa</th>
+            </tr>
+          </thead>
+          <tbody id="statements-table-body" class="divide-y divide-slate-200 bg-white text-slate-700">
+            <tr>
+              <td colspan="7" class="py-8 text-center text-slate-400">Carregando catálogo de afirmações...</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+    </section>
+  </main>
+
+  <!-- Modal: Cadastrar Nova Squad -->
+  <div id="squad-modal" class="hidden fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-lg w-full p-6 transition-all duration-300">
+      <div class="flex items-center justify-between pb-3 border-b border-slate-100">
+        <div class="flex items-center gap-2">
+          <span class="w-3 h-3 rounded-full bg-zroyal"></span>
+          <h3 class="text-lg font-bold text-znavy">Cadastrar Nova Squad</h3>
+        </div>
+        <button id="btn-close-squad-modal" type="button" class="text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100 transition">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+        </button>
+      </div>
+
+      <form id="squad-create-form" class="mt-4 space-y-4">
+        <div id="squad-modal-error" class="hidden p-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-xs font-medium"></div>
+
+        <div>
+          <label for="modal-squad-name" class="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">
+            Nome da Squad *
+          </label>
+          <input type="text" id="modal-squad-name" required placeholder="Ex: Squad Manufatura" class="w-full text-sm bg-slate-50 border border-slate-300 rounded-lg px-3.5 py-2.5 focus:outline-none focus:ring-2 focus:ring-zroyal focus:border-zroyal">
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label for="modal-squad-purdue" class="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">
+              Camada Purdue (ISA-95) *
+            </label>
+            <select id="modal-squad-purdue" required class="w-full text-sm bg-slate-50 border border-slate-300 rounded-lg px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-zroyal focus:border-zroyal">
+              <option value="Nível 2 - Controle e Supervisão (SCADA/HMI)">Nível 2 - Controle e Supervisão (SCADA/HMI)</option>
+              <option value="Nível 3 - Sistemas de Execução de Manufatura (MES)" selected>Nível 3 - Sistemas de Execução de Manufatura (MES)</option>
+              <option value="Nível 4 - Sistemas de Gestão e Nuvem (ERP/Cloud)">Nível 4 - Sistemas de Gestão e Nuvem (ERP/Cloud)</option>
+              <option value="Nível 1 - Controle Básico e Dispositivos de Campo">Nível 1 - Controle Básico e Dispositivos de Campo</option>
+            </select>
+          </div>
+
+          <div>
+            <label for="modal-squad-short" class="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">
+              Rótulo Curto *
+            </label>
+            <input type="text" id="modal-squad-short" required placeholder="Ex: N2 OT, N3 MES" class="w-full text-sm bg-slate-50 border border-slate-300 rounded-lg px-3.5 py-2.5 focus:outline-none focus:ring-2 focus:ring-zroyal focus:border-zroyal">
+          </div>
+        </div>
+
+        <div>
+          <label for="modal-squad-description" class="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">
+            Descrição do Escopo Operacional
+          </label>
+          <textarea id="modal-squad-description" rows="3" placeholder="Descreva brevemente as responsabilidades e tecnologias da squad..." class="w-full text-sm bg-slate-50 border border-slate-300 rounded-lg px-3.5 py-2 focus:outline-none focus:ring-2 focus:ring-zroyal focus:border-zroyal"></textarea>
+        </div>
+
+        <p class="text-[11px] text-slate-500">
+          * A nova squad será inicializada automaticamente com as 40 afirmações atômicas em nível AL0 (Não Adotada), permitindo início imediato da auditoria.
+        </p>
+
+        <div class="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
+          <button id="btn-cancel-squad-modal" type="button" class="text-xs text-slate-600 hover:text-slate-800 bg-slate-100 hover:bg-slate-200 px-4 py-2.5 rounded-lg font-semibold transition">
+            Cancelar
+          </button>
+          <button id="btn-save-squad-modal" type="submit" class="inline-flex items-center gap-1.5 bg-znavy hover:bg-zsteel text-white text-xs font-semibold px-5 py-2.5 rounded-lg transition shadow-md">
+            <span>Salvar Squad</span>
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal de Confirmação de Exclusão de Squad -->
+  <div id="delete-squad-modal" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs hidden p-4">
+    <div class="bg-white rounded-xl shadow-2xl border border-slate-200 w-full max-w-md overflow-hidden animate-in fade-in zoom-in duration-200">
+      <div class="bg-red-50 border-b border-red-100 p-5 flex items-start gap-3.5">
+        <div class="p-2.5 rounded-full bg-red-100 text-red-600 shrink-0">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+        </div>
+        <div>
+          <h3 class="text-base font-bold text-slate-800">Confirmar Exclusão de Squad</h3>
+          <p class="text-xs text-slate-600 mt-1">
+            Esta ação é irreversível e excluirá permanentemente os registros da equipe.
+          </p>
+        </div>
+      </div>
+
+      <div class="p-5 space-y-3">
+        <p class="text-sm text-slate-700">
+          Deseja realmente excluir a squad <strong id="delete-squad-target-name" class="text-slate-900 font-bold"></strong>?
+        </p>
+        <p class="text-xs text-slate-500 bg-slate-50 p-3 rounded-lg border border-slate-200">
+          ⚠️ Todas as 40 avaliações de práticas registradas para esta equipe serão removidas do banco de dados local. As matrizes de benchmarking e indicadores serão recalculados imediatamente.
+        </p>
+        <div id="delete-squad-error" class="hidden p-3 rounded-lg bg-red-50 border border-red-200 text-xs text-red-700"></div>
+      </div>
+
+      <div class="flex items-center justify-end gap-3 p-4 bg-slate-50 border-t border-slate-100">
+        <button id="btn-cancel-delete-squad" type="button" class="text-xs text-slate-600 hover:text-slate-800 bg-white hover:bg-slate-100 border border-slate-200 px-4 py-2.5 rounded-lg font-semibold transition">
+          Cancelar
+        </button>
+        <button id="btn-confirm-delete-squad" type="button" class="inline-flex items-center gap-1.5 bg-red-600 hover:bg-red-700 text-white text-xs font-semibold px-4 py-2.5 rounded-lg transition shadow-sm">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+          Confirmar Exclusão
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Rodapé Institucional -->
+  <footer class="bg-white border-t border-slate-200 py-6 mt-12 text-xs text-slate-500">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row justify-between items-center gap-4 text-center sm:text-left">
+      <div>
+        <p class="font-semibold text-slate-700">Zeppelin-AppSec &copy; 2026 Instituto Federal do Espírito Santo (IFES)</p>
+        <p class="mt-0.5">Pesquisa desenvolvida sob a metodologia Design Science Research (DSR).</p>
+      </div>
+      <div class="flex items-center gap-4">
+        <span>OWASP SAMM v2.0</span>
+        <span>&bull;</span>
+        <span>OWASP DSOMM v5.0.2</span>
+        <span>&bull;</span>
+        <span>Modelo Purdue (ISA-95)</span>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Script da Aplicação -->
+  <script src="/static/app.js"></script>
+</body>
+</html>
+

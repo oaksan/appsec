@@ -1,0 +1,13 @@
+services:
+  appsec:
+    build: .
+    container_name: zeppelin-appsec
+    ports:
+      - "8000:8000"
+    environment:
+      - PYTHONUNBUFFERED=1
+    volumes:
+      # Opcional: descomente para persistir dados locais fora do container
+      # - ./zeppelin.db:/app/zeppelin.db
+      - ./docs:/app/docs:ro
+    restart: unless-stopped
